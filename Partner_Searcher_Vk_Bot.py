@@ -1,7 +1,7 @@
 from vk_api.longpoll import VkLongPoll, VkEventType
 from bs4 import BeautifulSoup as bs
 from datetime import datetime
-from text_book import status, age_from, age_to, gender, city
+from text_book import status, age_from, age_to, gender, city, check, congratulations
 import vk_api
 from vk_api import VkUpload
 import requests
@@ -23,7 +23,27 @@ def get_vk_name(user_id):
     return name.split()[0]
 
 
-# Функцию отправки письма ботом
+def get_vk_id(user_id):
+    response = requests.get(
+        "https://api.vk.com/method/users.get",
+        params={
+            "access_token": token,
+            "v": 5.89,
+            "user_ids": user_id,
+        }
+    )
+    id_nick_json = response.json()
+    return id_nick_json['response'][0].get('id')
+
+
+# Функцию отправки фото ботом
+def send_photo(user_id, message, attachment=None):
+    kw = {'user_id': user_id, 'message': message, 'random_id': random.randrange(10 ** 7)}
+    if kw:
+        kw['attachment'] = attachment
+    vk_session.method('messages.send', kw)
+
+
 def write_message(user_id, message, random_id):
     vk_session.method('messages.send', {'user_id': user_id, 'message': message, 'random_id': random_id})
 
@@ -49,7 +69,7 @@ def search_for_partner():
     time.sleep(0.34)
     id_list = []
     for dicts in partners['response']['items']:
-        if not dicts.get('is_closed'):
+        if dicts.get('is_closed') is False:
             id_list.append(dicts.get('id'))
     return id_list
 
@@ -109,9 +129,9 @@ def get_photos_name():
         names = []
         if photo_json['response'].get('count') == 3:
             for links in photo_json['response']['items']:
-                photo_name = 'photo-' + str(links.get('owner_id')) + '_' + str(links.get('id'))
+                photo_name = 'photo' + str(links.get('owner_id')) + '_' + str(links.get('id'))
                 names.append(photo_name)
-            return names
+                return names
         elif photo_json['response'].get('count') > 3:
             photo_links = []
             count_likes = []
@@ -121,169 +141,109 @@ def get_photos_name():
             for count in photo_json['response']['items']:
                 count_likes.append(count.get('likes').get('count'))
             for photo in photo_json['response']['items']:
-                name = 'photo-' + str(photo.get('owner_id')) + '_' + str(photo.get('id'))
+                name = 'photo' + str(photo.get('owner_id')) + '_' + str(photo.get('id'))
                 three_names.append(name)
             tup = sorted(zip(photo_links, count_likes, three_names), reverse=True)[:3]
             for links in tup:
                 names.append(links[2])
-            return names
+                return names
 
 
 # Функция, сохраняющая фото на сервере??? Не очень понимаю нужна ли она все таки или нет.
 # В документации размыто написанно
-def saving_photos_to_server_of_vk():
-    photo_response = requests.get(
-        "https://api.vk.com/method/photos.getMessagesUploadServer",
-        params={
-            "access_token": access_token,
-            "peer_id": event.user_id,
-            "v": 5.52
-        }
-    )
-    res = photo_response.json()
-    download_url = res.get('upload_url')
-    return download_url
+# def saving_photos_to_server_of_vk():
+#     photo_response = requests.get(
+#         "https://api.vk.com/method/photos.getMessagesUploadServer",
+#         params={
+#             "access_token": access_token,
+#             "peer_id": event.user_id,
+#             "v": 5.52
+#         }
+#     )
+#     res = photo_response.json()
+#     download_url = res.get('upload_url')
+#     return download_url
 
 
-# Функция скидывает только ссылку, нужна фотография
-def send_photo_message(user_id, message, random_id, attachment):
-    for photos in get_photos_name():
-        vk_session.method('messages.send', {'user_id': user_id, 'message': message, 'random_id': random_id,
-                                            'attachment': attachment})
+# Ожидает первого сообщения от пользователя
+def start_conversation_greetings():
+    write_message(identity, 'Здравствуйте, ' + get_vk_name(identity) + '! ' +
+                  'Вы хотите найти себе пару?', random.randint(-2147483648, 2147483647))
+    for event in longpoll.listen():
+        if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
+            message_text = event.text.lower()
+            print_information_about_message(message_text)
+            if event.text == 'да':
+                if event.from_user:
+                    write_message(identity, 'Начнём', random.randint(-2147483648, 2147483647))
+                elif event.from_chat:
+                    write_message(identity, 'Начнём', random.randint(-2147483648, 2147483647))
+                    break
+            elif event.text == 'нет':
+                if event.from_user:
+                    write_message(identity, 'Я другого не умею', random.randint(-2147483648, 2147483647))
+                elif event.from_chat:
+                    write_message(identity, 'Я другого не умею', random.randint(-2147483648, 2147483647))
+
+
+# Выводит в консоль информацию по полученным сообщениям
+def print_information_about_message(message_text):
+    print('Сообщение было доставленно в ' + str(datetime.strftime(datetime.now(), '%H:%M')))
+    print(message_text)
+    print('-|_|-|_|-|_|-')
+
+
+# Начало поиска + функция look_for_age_from
+def start_searching_age_from():
+    write_message(identity, age_from, random.randint(-2147483648, 2147483647))
+    if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
+        message_text = event.text.lower()
+        print_information_about_message(message_text)
+        criterian.append(int(message_text))
+
+
+# Поиск пратнера по параметру возраст до
+def look_for_age_to():
+    write_message(identity, age_to, random.randint(-2147483648, 2147483647))
+    if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
+        message_text = event.text.lower()
+        print_information_about_message(message_text)
+        criterian.append(int(message_text))
+
+
+# Поиск по параметру пол партнера
+def look_for_gender():
+    write_message(identity, gender, random.randint(-2147483648, 2147483647))
+    if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
+        message_text = event.text.lower()
+        print_information_about_message(message_text)
+        criterian.append(int(message_text))
+
+
+# Поиск по параметру семейное положение
+def look_for_status():
+    write_message(identity, status, random.randint(-2147483648, 2147483647))
+    if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
+        message_text = event.text.lower()
+        print_information_about_message(message_text)
+        criterian.append(int(message_text))
+
+
+# Поиск по параметру город
+def look_for_partners_city():
+    write_message(identity, city, random.randint(-2147483648, 2147483647))
+    if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
+        message_text = event.text.lower()
+        print_information_about_message(message_text)
+        criterian.append(message_text)
 
 
 criterian = []
-while True:
-    flag = 0
-    for event in longpoll.listen():
-        if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-            print('Сообщение было доставленно в ' + str(datetime.strftime(datetime.now(), '%H:%M')))
-            print('Текст сообщение: ' + event.text)
-            print('-|_|-|_|-|_|-')
-            event.text.lower()
-            if event.text == 'привет' or event.text == 'здравствуйте' or event.text == 'здравствуй':
-                if event.from_user:
-                    write_message(event.user_id, 'Здравствуйте, ' + get_vk_name(event.user_id) + '! ' +
-                                  'Вы хотите найти себе пару?', random.randint(-2147483648, 2147483647))
-                elif event.from_chat:
-                    write_message(event.user_id, 'Здравствуйте, ' + get_vk_name(event.user_id) + '! ' +
-                                  'Вы хотите найти себе пару?', random.randint(-2147483648, 2147483647))
-                flag = 1
-                for event in longpoll.listen():
-                    if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-                        print('Сообщение было доставленно в ' + str(datetime.strftime(datetime.now(), '%H:%M')))
-                        print('Текст сообщение: ' + event.text)
-                        print('-|_|-|_|-|_|-')
-                        response = event.text.lower()
-                        if event.text == 'да':
-                            if event.from_user:
-                                write_message(event.user_id, age_from, random.randint(-2147483648, 2147483647))
-                            elif event.from_chat:
-                                write_message(event.user_id, age_from, random.randint(-2147483648, 2147483647))
-                            for event in longpoll.listen():
-                                if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-                                    print('Сообщение было доставленно в ' + str(datetime.strftime(datetime.now(),
-                                                                                                  '%H:%M')))
-                                    print('Текст сообщение: ' + event.text)
-                                    print('-|_|-|_|-|_|-')
-                                    response = event.text.lower()
-                                    criterian.append(int(response))
-                                    if event.from_user:
-                                        write_message(event.user_id, age_to, random.randint(-2147483648, 2147483647))
-                                    elif event.from_chat:
-                                        write_message(event.user_id, age_to, random.randint(-2147483648, 2147483647))
-                                    for event in longpoll.listen():
-                                        if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-                                            print('Сообщение было доставленно в ' + str(
-                                                datetime.strftime(datetime.now(), '%H:%M')))
-                                            print('Текст сообщение: ' + event.text)
-                                            print('-|_|-|_|-|_|-')
-                                            response = event.text.lower()
-                                            criterian.append(int(response))
-                                            if event.from_user:
-                                                write_message(event.user_id, gender,
-                                                              random.randint(-2147483648, 2147483647))
-                                            elif event.from_chat:
-                                                write_message(event.user_id, gender,
-                                                              random.randint(-2147483648, 2147483647))
-                                            for event in longpoll.listen():
-                                                if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-                                                    print('Сообщение было доставленно в ' + str(
-                                                        datetime.strftime(datetime.now(), '%H:%M')))
-                                                    print('Текст сообщение: ' + event.text)
-                                                    print('-|_|-|_|-|_|-')
-                                                    response = event.text.lower()
-                                                    criterian.append(int(response))
-                                                    if event.from_user:
-                                                        write_message(event.user_id, city,
-                                                                      random.randint(-2147483648, 2147483647))
-                                                    elif event.from_chat:
-                                                        write_message(event.user_id, city,
-                                                                      random.randint(-2147483648, 2147483647))
-                                                    for event in longpoll.listen():
-                                                        if event.type == VkEventType.MESSAGE_NEW and event.to_me and \
-                                                                event.text:
-                                                            print('Сообщение было доставленно в ' + str(
-                                                                datetime.strftime(datetime.now(), '%H:%M')))
-                                                            print('Текст сообщение: ' + event.text)
-                                                            print('-|_|-|_|-|_|-')
-                                                            response = event.text.lower()
-                                                            criterian.append(response)
-                                                            if event.from_user:
-                                                                write_message(event.user_id, status,
-                                                                              random.randint(-2147483648, 2147483647))
-                                                            elif event.from_chat:
-                                                                write_message(event.user_id, status,
-                                                                              random.randint(-2147483648, 2147483647))
-                                                            for event in longpoll.listen():
-                                                                if event.type == VkEventType.MESSAGE_NEW and \
-                                                                        event.to_me and event.text:
-                                                                    print('Сообщение было доставленно в ' + str(
-                                                                        datetime.strftime(datetime.now(), '%H:%M')))
-                                                                    print('Текст сообщение: ' + event.text)
-                                                                    print('-|_|-|_|-|_|-')
-                                                                    response = event.text.lower()
-                                                                    criterian.append(response)
-                                                                    print(criterian)
-                                                                    if event.from_user:
-                                                                        for photos in get_photos_name():
-                                                                            send_photo_message(event.user_id,
-                                                                                               'Нравится ли вам внешность?',
-                                                                                               random.randint
-                                                                                               (-2147483648,
-                                                                                                2147483647), photos)
-                                                                    elif event.from_chat:
-                                                                        for photos in get_photos_name():
-                                                                            send_photo_message(event.user_id,
-                                                                                               'Нравится ли вам внешность?',
-                                                                                               random.randint
-                                                                                               (-2147483648,
-                                                                                                2147483647), photos)
-                                                                    for event in longpoll.listen():
-                                                                        if event.type == VkEventType.MESSAGE_NEW and \
-                                                                                event.to_me and event.text:
-                                                                            print('Сообщение было доставленно в ' + str(
-                                                                                datetime.strftime(datetime.now(),
-                                                                                                  '%H:%M')))
-                                                                            print('Текст сообщение: ' + event.text)
-                                                                            print('-|_|-|_|-|_|-')
-                                                                            response = event.text.lower()
-                                                                            if event.text == 'да':
-                                                                                print('Поздравляю это ваш партнёр')
 
-
-
-            elif event.text == 'пока' or event.text == 'до свидания':
-                if event.from_user:
-                    write_message(event.user_id, 'Всего доброго, ' + get_vk_name(event.user_id) + ')',
-                                  random.randint(-2147483648, 2147483647))
-                elif event.from_chat:
-                    write_message(event.user_id, 'Всего доброго, ' + get_vk_name(event.user_id) + ')',
-                                  random.randint(-2147483648, 2147483647))
-            else:
-                if event.from_user:
-                    write_message(event.user_id, 'Я еще не научился отвечать на такие предложения)',
-                                  random.randint(-2147483648, 2147483647))
-                elif event.from_chat:
-                    write_message(event.user_id, 'Я еще не научился отвечать на такие предложения)',
-                                  random.randint(-2147483648, 2147483647))
+for event in longpoll.listen():
+    if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
+        event.text.lower()
+        if event.from_user:
+            identity = event.user_id
+            start_conversation_greetings()
+            start_searching_age_from()
