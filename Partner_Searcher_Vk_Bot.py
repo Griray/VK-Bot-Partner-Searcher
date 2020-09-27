@@ -1,7 +1,7 @@
 from vk_api.longpoll import VkLongPoll, VkEventType
 from bs4 import BeautifulSoup as bs
 from datetime import datetime
-from text_book import status, age_from, age_to, gender, city, check, congratulations, do_not_worry
+from text_book import status, age_from, age_to, gender, city, check, congratulations, do_not_worry, wait
 import vk_api
 import requests
 import random
@@ -125,7 +125,7 @@ def start_conversation_greetings():
         if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
             message_text = event.text.lower()
             print_information_about_message(message_text)
-            if event.text == 'да':
+            if message_text == 'да':
                 if event.from_user:
                     write_message(identity, 'Начнём', random.randint(-2147483648, 2147483647))
                     break
@@ -193,7 +193,7 @@ def look_for_partners_city():
             break
 
 
-def cycle_sending_three_photos(vk_iden):
+def cycle_sending_three_photos(vk_iden, choice):
     photo_name = get_photos_name(vk_iden)
     if photo_name is None:
         pass
@@ -202,18 +202,20 @@ def cycle_sending_three_photos(vk_iden):
             send_photo(identity, '', attachment=photo)
         for event in longpoll.listen():
             if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-                event.text.lower()
-                if event.text == 'да':
+                message_text = event.text.lower()
+                if message_text == 'да':
                     if event.from_user:
                         write_message(identity, 'https://vk.com/id' + str(id) + congratulations,
                                       random.randint(-2147483648, 2147483647))
-                        break
-                elif event.text == 'нет':
+                        choice = not choice
+                        return choice
+                elif message_text == 'нет':
                     if event.from_user:
                         write_message(identity, do_not_worry, random.randint(-2147483648, 2147483647))
                         break
 
 
+choice_is_done = False
 criterian = []
 for event in longpoll.listen():
     if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
@@ -227,11 +229,13 @@ for event in longpoll.listen():
             look_for_partners_city()
             look_for_status()
             print('Критерии отобранные клиентом', criterian)
+            write_message(identity, wait, random.randint(-2147483648, 2147483647))
             all_partners = search_for_partner()
             truely_partners = clean_id_with_less_photos(all_partners)
             write_message(identity, check, random.randint(-2147483648, 2147483647))
             for id in truely_partners:
-                cycle_sending_three_photos(id)
+                choice_is_done = cycle_sending_three_photos(id, choice_is_done)
                 print('Фото отправлены')
-
-
+                if choice_is_done == True:
+                    print('Поиск завершен!')
+                    break
