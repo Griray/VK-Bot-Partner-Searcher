@@ -193,26 +193,25 @@ def look_for_partners_city():
             break
 
 
-def cycle_sending_three_photos(id_list):
-    for id in id_list:
-        photo_name = get_photos_name(id)
-        if photo_name is None:
-            continue
-        else:
-            for photo in photo_name:
-                send_photo(identity, '', attachment=photo)
-            for event in longpoll.listen():
-                if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
-                    event.text.lower()
-                    if event.text == 'да':
-                        if event.from_user:
-                            write_message(identity, 'https://vk.com/id' + str(id) + congratulations,
-                                          random.randint(-2147483648, 2147483647))
-                    elif event.text == 'нет':
-                        if event.from_user:
-                            write_message(identity, do_not_worry, random.randint(-2147483648, 2147483647))
-                            truely_partners.remove(id)
-        continue
+def cycle_sending_three_photos(vk_iden):
+    photo_name = get_photos_name(vk_iden)
+    if photo_name is None:
+        pass
+    else:
+        for photo in photo_name:
+            send_photo(identity, '', attachment=photo)
+        for event in longpoll.listen():
+            if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
+                event.text.lower()
+                if event.text == 'да':
+                    if event.from_user:
+                        write_message(identity, 'https://vk.com/id' + str(id) + congratulations,
+                                      random.randint(-2147483648, 2147483647))
+                        break
+                elif event.text == 'нет':
+                    if event.from_user:
+                        write_message(identity, do_not_worry, random.randint(-2147483648, 2147483647))
+                        break
 
 
 criterian = []
@@ -231,6 +230,8 @@ for event in longpoll.listen():
             all_partners = search_for_partner()
             truely_partners = clean_id_with_less_photos(all_partners)
             write_message(identity, check, random.randint(-2147483648, 2147483647))
-            cycle_sending_three_photos(truely_partners)
+            for id in truely_partners:
+                cycle_sending_three_photos(id)
+                print('Фото отправлены')
 
 
