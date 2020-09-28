@@ -1,7 +1,8 @@
 from vk_api.longpoll import VkLongPoll, VkEventType
 from bs4 import BeautifulSoup as bs
 from datetime import datetime
-from text_book import status, age_from, age_to, gender, city, check, congratulations, do_not_worry, wait
+from text_book import status, age_from, age_to, gender, city, check, congratulations, do_not_worry, wait, \
+    advice_for_continue_search
 import vk_api
 import requests
 import random
@@ -198,14 +199,17 @@ def cycle_sending_three_photos(vk_iden, choice):
     if photo_name is None:
         pass
     else:
+        three = ''
         for photo in photo_name:
-            send_photo(identity, '', attachment=photo)
+            three += photo + ','
+        ready_three = three[:-1]
+        send_photo(identity, 'https://vk.com/id' + str(vk_iden), attachment=ready_three)
         for event in longpoll.listen():
             if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
                 message_text = event.text.lower()
                 if message_text == 'да':
                     if event.from_user:
-                        write_message(identity, 'https://vk.com/id' + str(id) + congratulations,
+                        write_message(identity, 'https://vk.com/id' + str(vk_iden) + congratulations,
                                       random.randint(-2147483648, 2147483647))
                         choice = not choice
                         return choice
@@ -238,4 +242,4 @@ for event in longpoll.listen():
                 print('Фото отправлены')
                 if choice_is_done == True:
                     print('Поиск завершен!')
-                    break
+                    write_message(identity, advice_for_continue_search, random.randint(-2147483648, 2147483647))
