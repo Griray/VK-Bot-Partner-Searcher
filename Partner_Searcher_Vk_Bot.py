@@ -3,6 +3,7 @@ from bs4 import BeautifulSoup as bs
 from datetime import datetime
 from text_book import status, age_from, age_to, gender, city, check, congratulations, do_not_worry, wait, \
     advice_for_continue_search
+from sql_models import User, Partner, PhotoData
 import vk_api
 import requests
 import random
@@ -196,9 +197,7 @@ def look_for_partners_city():
 
 def cycle_sending_three_photos(vk_iden, choice):
     photo_name = get_photos_name(vk_iden)
-    if photo_name is None:
-        pass
-    else:
+    if photo_name:
         three = ''
         for photo in photo_name:
             three += photo + ','
