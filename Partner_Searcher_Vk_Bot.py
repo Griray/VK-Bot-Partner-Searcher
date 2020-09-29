@@ -1,9 +1,9 @@
 from vk_api.longpoll import VkLongPoll, VkEventType
-from bs4 import BeautifulSoup as bs
 from datetime import datetime
+import datetime as DT
 from text_book import status, age_from, age_to, gender, city, check, congratulations, do_not_worry, wait, \
     advice_for_continue_search
-from sql_models import User, Partner, PhotoData
+from sql_models import User, Partner, PhotoData, session
 import vk_api
 import requests
 import random
@@ -16,12 +16,133 @@ session_api = vk_session.get_api()
 longpoll = VkLongPoll(vk_session)
 
 
-# Получаем имя пользователя, который к нам обратился за поиском партнёра
-def get_vk_name(user_id):
-    name_response = requests.get('https://vk.com/id' + str(user_id))
-    bs_response = bs(name_response.text, 'html.parser')
-    name = bs_response.find('h2', class_='op_header').text
-    return name.split()[0]
+def get_person_name(id):
+    partner_response = requests.get(
+        "https://api.vk.com/method/users.get",
+        params={
+            "access_token": token,
+            "user_ids": id,
+            "fields": "city,bdate,",
+            "name_case": "Nom",
+            "v": 5.124
+        }
+    )
+    partners = partner_response.json()
+    time.sleep(0.34)
+    client_name = partners.get('response')[0].get("first_name")
+    return client_name
+
+
+def get_person_surname(id):
+    partner_response = requests.get(
+        "https://api.vk.com/method/users.get",
+        params={
+            "access_token": token,
+            "user_ids": id,
+            "fields": "city,bdate,",
+            "name_case": "Nom",
+            "v": 5.124
+        }
+    )
+    partners = partner_response.json()
+    time.sleep(0.34)
+    client_surname = partners.get('response')[0].get("last_name")
+    return client_surname
+
+
+def get_person_age(id):
+    partner_response = requests.get(
+        "https://api.vk.com/method/users.get",
+        params={
+            "access_token": token,
+            "user_ids": id,
+            "fields": "city,bdate,",
+            "name_case": "Nom",
+            "v": 5.124
+        }
+    )
+    partners = partner_response.json()
+    time.sleep(0.34)
+    client_age = partners.get('response')[0].get("bdate")
+    client_age_ready = DT.datetime.strptime(client_age, "%d.%m.%Y").date()
+    return client_age_ready
+
+
+def get_person_city(id):
+    partner_response = requests.get(
+        "https://api.vk.com/method/users.get",
+        params={
+            "access_token": token,
+            "user_ids": id,
+            "fields": "city,bdate,",
+            "name_case": "Nom",
+            "v": 5.124
+        }
+    )
+    partners = partner_response.json()
+    time.sleep(0.34)
+    client_city = partners.get('response')[0].get("city").get("title")
+    return client_city
+
+
+def get_photo_likes(id):
+    likes = []
+    photo_response = requests.get(
+        "https://api.vk.com/method/photos.get",
+        params={
+            "access_token": access_token,
+            "v": 5.77,
+            "owner_id": id,
+            "album_id": "profile",
+            "extended": 1,
+            "photo_sizes": 0,
+        }
+    )
+    photo_json = photo_response.json()
+    time.sleep(0.34)
+    if photo_json['response'].get('count') == 3:
+        for elements in photo_json['response'].get('items'):
+            like = elements.get('likes').get('count')
+            likes.append(like)
+        return likes
+    elif photo_json['response'].get('count') >= 3:
+        count_likes = []
+        three_names = []
+        for count in photo_json['response']['items']:
+            count_likes.append(count.get('likes').get('count'))
+        for photo in photo_json['response']['items']:
+            name = 'photo' + str(photo.get('owner_id')) + '_' + str(photo.get('id'))
+            three_names.append(name)
+        tup = sorted(zip(count_likes, three_names), reverse=True)[:3]
+        for like in tup:
+            likes.append(like[0])
+        return likes
+
+
+def make_dict_photo_and_likes(id):
+    pholikes = dict(zip(get_photos_name(id), get_photo_likes(id)))
+    return pholikes
+
+
+# Отправка данных по клиенту в БД
+def send_client_information_to_db():
+    client_user = User(identity, get_person_name(identity), get_person_surname(identity), get_person_age(identity),
+                       criterian[0], criterian[1], get_person_city(identity))
+    session.add(client_user)
+
+
+# Отправка данных по партнёру в БД
+def send_patner_information_to_db(part_id):
+    partner = Partner(part_id, get_person_name(part_id), get_person_surname(part_id), get_person_age(part_id),
+                      identity)
+    session.add(partner)
+
+
+#  Отправка данных по фото партнёра в БД
+def send_photo_information_to_db(part_id):
+    for link, like in make_dict_photo_and_likes(part_id).items():
+        partner = PhotoData(part_id, link, like)
+        session.add(partner)
 
 
 # Функцию отправки фото ботом
@@ -121,7 +242,7 @@ def get_photos_name(vk_id):
 
 # Ожидает первого сообщения от пользователя
 def start_conversation_greetings():
-    write_message(identity, 'Здравствуйте, ' + get_vk_name(identity) + '! ' +
+    write_message(identity, 'Здравствуйте, ' + get_person_name(identity) + '! ' +
                   'Вы хотите найти себе пару?', random.randint(-2147483648, 2147483647))
     for event in longpoll.listen():
         if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
@@ -233,6 +354,7 @@ for event in longpoll.listen():
             look_for_status()
             print('Критерии отобранные клиентом', criterian)
             write_message(identity, wait, random.randint(-2147483648, 2147483647))
+            send_client_information_to_db()
             all_partners = search_for_partner()
             truely_partners = clean_id_with_less_photos(all_partners)
             write_message(identity, check, random.randint(-2147483648, 2147483647))
@@ -240,5 +362,8 @@ for event in longpoll.listen():
                 choice_is_done = cycle_sending_three_photos(id, choice_is_done)
                 print('Фото отправлены')
                 if choice_is_done == True:
+                    send_patner_information_to_db(id)
+                    send_photo_information_to_db(id)
+                    session.commit()
                     print('Поиск завершен!')
                     write_message(identity, advice_for_continue_search, random.randint(-2147483648, 2147483647))
