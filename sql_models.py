@@ -2,12 +2,11 @@ import sqlalchemy as sq
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 
-engine = sq.create_engine('postgresql+psycopg2://postgres:postgres@localhost:5432//VKTINDER')
-Session = sessionmaker(bind=engine)
-Session.configure(bind=engine)
-connection = engine.connect()
 Base = declarative_base()
+engine = sq.create_engine('postgresql+psycopg2://postgres:postgres@localhost//VKTINDER')
+Session = sessionmaker(bind=engine)
 session = Session()
+
 
 
 class User(Base):
@@ -17,24 +16,24 @@ class User(Base):
     vk_id = sq.Column(sq.Integer, nullable=False, unique=True)
     first_name = sq.Column(sq.String, nullable=False)
     second_name = sq.Column(sq.String, nullable=False)
-    age = sq.Column(sq.Integer, nullable=False)
     range_age_from = sq.Column(sq.Integer, nullable=False)
     range_age_to = sq.Column(sq.Integer, nullable=False)
     city = sq.Column(sq.String, nullable=False)
+    age = sq.Column(sq.String, nullable=False)
 
-    def __init__(self, vk_id, first_name, second_name, age, range_age_from, range_age_to, city):
+    def __init__(self, vk_id, first_name, second_name, range_age_from, range_age_to, city, age):
         self.vk_id = vk_id
         self.first_name = first_name
         self.second_name = second_name
-        self.age = age
         self.range_age_from = range_age_from
         self.range_age_to = range_age_to
         self.city = city
+        self.age = age
 
     def __repr__(self):
         return "<User('%s','%s', '%s', '%s', '%s', '%s', '%s')>" % \
-               (self.vk_id, self.first_name, self.second_name, self.age, self.range_age_from, self.range_age_to,
-                self.city)
+               (self.vk_id, self.first_name, self.second_name, self.range_age_from, self.range_age_to,
+                self.city, self.age)
 
 
 class Partner(Base):
@@ -44,7 +43,7 @@ class Partner(Base):
     vk_id = sq.Column(sq.Integer, nullable=False, unique=True)
     first_name = sq.Column(sq.String, nullable=False)
     second_name = sq.Column(sq.String, nullable=False)
-    age = sq.Column(sq.Integer, nullable=False)
+    age = sq.Column(sq.String, nullable=False)
     id_User = sq.Column(sq.Integer, sq.ForeignKey('Client.id'))
 
     def __init__(self, vk_id, first_name, second_name, age, id_User):

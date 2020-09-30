@@ -64,8 +64,7 @@ def get_person_age(id):
     partners = partner_response.json()
     time.sleep(0.34)
     client_age = partners.get('response')[0].get("bdate")
-    client_age_ready = DT.datetime.strptime(client_age, "%d.%m.%Y").date()
-    return client_age_ready
+    return client_age
 
 
 def get_person_city(id):
@@ -126,23 +125,26 @@ def make_dict_photo_and_likes(id):
 
 # Отправка данных по клиенту в БД
 def send_client_information_to_db():
-    client_user = User(identity, get_person_name(identity), get_person_surname(identity), get_person_age(identity),
-                       criterian[0], criterian[1], get_person_city(identity))
+    client_user = User(identity, get_person_name(identity), get_person_surname(identity), criterian[0], criterian[1],
+                       get_person_city(identity), get_person_age(identity),)
     session.add(client_user)
+
 
 
 # Отправка данных по партнёру в БД
 def send_patner_information_to_db(part_id):
     partner = Partner(part_id, get_person_name(part_id), get_person_surname(part_id), get_person_age(part_id),
-                      identity)
+                      User.id)
     session.add(partner)
+
 
 
 #  Отправка данных по фото партнёра в БД
 def send_photo_information_to_db(part_id):
     for link, like in make_dict_photo_and_likes(part_id).items():
-        partner = PhotoData(part_id, link, like)
+        partner = PhotoData(Partner.id, link, like)
         session.add(partner)
+
 
 
 # Функцию отправки фото ботом
@@ -355,6 +357,7 @@ for event in longpoll.listen():
             print('Критерии отобранные клиентом', criterian)
             write_message(identity, wait, random.randint(-2147483648, 2147483647))
             send_client_information_to_db()
+            session.commit()
             all_partners = search_for_partner()
             truely_partners = clean_id_with_less_photos(all_partners)
             write_message(identity, check, random.randint(-2147483648, 2147483647))
@@ -363,6 +366,7 @@ for event in longpoll.listen():
                 print('Фото отправлены')
                 if choice_is_done == True:
                     send_patner_information_to_db(id)
+                    session.commit()
                     send_photo_information_to_db(id)
                     session.commit()
                     print('Поиск завершен!')
