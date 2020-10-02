@@ -1,6 +1,6 @@
 from vk_api.longpoll import VkLongPoll, VkEventType
 from datetime import datetime
-import datetime as DT
+from sql_models import sq
 from text_book import status, age_from, age_to, gender, city, check, congratulations, do_not_worry, wait, \
     advice_for_continue_search
 from sql_models import User, Partner, PhotoData, session
@@ -16,6 +16,7 @@ session_api = vk_session.get_api()
 longpoll = VkLongPoll(vk_session)
 
 
+# Получить имя клиента/партнера
 def get_person_name(id):
     partner_response = requests.get(
         "https://api.vk.com/method/users.get",
@@ -33,6 +34,7 @@ def get_person_name(id):
     return client_name
 
 
+# Получить фамилию клиента/партнера
 def get_person_surname(id):
     partner_response = requests.get(
         "https://api.vk.com/method/users.get",
@@ -50,6 +52,7 @@ def get_person_surname(id):
     return client_surname
 
 
+# Получить возраст клиента/партнера
 def get_person_age(id):
     partner_response = requests.get(
         "https://api.vk.com/method/users.get",
@@ -67,6 +70,7 @@ def get_person_age(id):
     return client_age
 
 
+# Получить город клиента/партнера
 def get_person_city(id):
     partner_response = requests.get(
         "https://api.vk.com/method/users.get",
@@ -84,6 +88,7 @@ def get_person_city(id):
     return client_city
 
 
+# Получить количество лайков на топ 3 пролайканных фотографиях партнера
 def get_photo_likes(id):
     likes = []
     photo_response = requests.get(
@@ -118,6 +123,7 @@ def get_photo_likes(id):
         return likes
 
 
+# Создать словарь где key имя фотографии, value количество лайков
 def make_dict_photo_and_likes(id):
     pholikes = dict(zip(get_photos_name(id), get_photo_likes(id)))
     return pholikes
@@ -126,25 +132,23 @@ def make_dict_photo_and_likes(id):
 # Отправка данных по клиенту в БД
 def send_client_information_to_db():
     client_user = User(identity, get_person_name(identity), get_person_surname(identity), criterian[0], criterian[1],
-                       get_person_city(identity), get_person_age(identity),)
+                       get_person_city(identity), get_person_age(identity))
     session.add(client_user)
-
+    return client_user
 
 
 # Отправка данных по партнёру в БД
-def send_patner_information_to_db(part_id):
+def send_patner_information_to_db(part_id, client):
     partner = Partner(part_id, get_person_name(part_id), get_person_surname(part_id), get_person_age(part_id),
-                      User.id)
+                      client)
     session.add(partner)
-
+    return partner
 
 
 #  Отправка данных по фото партнёра в БД
-def send_photo_information_to_db(part_id):
-    for link, like in make_dict_photo_and_likes(part_id).items():
-        partner = PhotoData(Partner.id, link, like)
-        session.add(partner)
-
+def send_photo_information_to_db(part_id, link, likes):
+    partner_photo = PhotoData(part_id, link, likes)
+    session.add(partner_photo)
 
 
 # Функцию отправки фото ботом
@@ -318,6 +322,7 @@ def look_for_partners_city():
             break
 
 
+# Отправка сразу 3 фотографий в одном письме чат бота
 def cycle_sending_three_photos(vk_iden, choice):
     photo_name = get_photos_name(vk_iden)
     if photo_name:
@@ -341,8 +346,17 @@ def cycle_sending_three_photos(vk_iden, choice):
                         break
 
 
-choice_is_done = False
+# Check existence of client or get him/her for next step of code
+def get_or_create(session, model, **kwargs):
+    instance = session.query(model).filter_by(**kwargs).first()
+    if instance:
+        return instance
+    else:
+        send_client_information_to_db()
+
+
 criterian = []
+choice_is_done = False
 for event in longpoll.listen():
     if event.type == VkEventType.MESSAGE_NEW and event.to_me and event.text:
         event.text.lower()
@@ -356,7 +370,7 @@ for event in longpoll.listen():
             look_for_status()
             print('Критерии отобранные клиентом', criterian)
             write_message(identity, wait, random.randint(-2147483648, 2147483647))
-            send_client_information_to_db()
+            get_or_create(session, User, vk_id=identity)
             session.commit()
             all_partners = search_for_partner()
             truely_partners = clean_id_with_less_photos(all_partners)
@@ -365,9 +379,12 @@ for event in longpoll.listen():
                 choice_is_done = cycle_sending_three_photos(id, choice_is_done)
                 print('Фото отправлены')
                 if choice_is_done == True:
-                    send_patner_information_to_db(id)
-                    session.commit()
-                    send_photo_information_to_db(id)
-                    session.commit()
+                    for user in session.query(User).filter_by(vk_id=identity):
+                        send_patner_information_to_db(id, user.id)
+                        session.commit()
+                    for partner in session.query(Partner).filter_by(vk_id=id):
+                        for name, like in make_dict_photo_and_likes(id).items():
+                            send_photo_information_to_db(partner.id, name, like)
+                            session.commit()
                     print('Поиск завершен!')
                     write_message(identity, advice_for_continue_search, random.randint(-2147483648, 2147483647))

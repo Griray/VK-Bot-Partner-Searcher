@@ -3,7 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 
 Base = declarative_base()
-engine = sq.create_engine('postgresql+psycopg2://postgres:postgres@localhost//VKTINDER')
+engine = sq.create_engine('postgresql+psycopg2://postgres:postgres@localhost/VKTINDER')
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -19,7 +19,7 @@ class User(Base):
     range_age_from = sq.Column(sq.Integer, nullable=False)
     range_age_to = sq.Column(sq.Integer, nullable=False)
     city = sq.Column(sq.String, nullable=False)
-    age = sq.Column(sq.String, nullable=False)
+    age = sq.Column(sq.String)
 
     def __init__(self, vk_id, first_name, second_name, range_age_from, range_age_to, city, age):
         self.vk_id = vk_id
@@ -43,7 +43,7 @@ class Partner(Base):
     vk_id = sq.Column(sq.Integer, nullable=False, unique=True)
     first_name = sq.Column(sq.String, nullable=False)
     second_name = sq.Column(sq.String, nullable=False)
-    age = sq.Column(sq.String, nullable=False)
+    age = sq.Column(sq.String)
     id_User = sq.Column(sq.Integer, sq.ForeignKey('Client.id'))
 
     def __init__(self, vk_id, first_name, second_name, age, id_User):
@@ -74,3 +74,9 @@ class PhotoData(Base):
     def __repr__(self):
         return "<User('%s','%s', '%s')>" % \
                (self.id_DatingUser, self.link_photo, self.count_likes)
+
+
+def create_tables():
+    Base.metadata.create_all(engine)
+    print('DataBase create')
+
